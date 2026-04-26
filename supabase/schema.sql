@@ -232,3 +232,26 @@ create index idx_notifications_user on public.notifications(user_id, is_read);
 create index idx_class_sessions_course on public.class_sessions(course_id, scheduled_at);
 create index idx_recordings_course on public.class_recordings(course_id, recorded_at);
 create index idx_blog_published on public.blog_posts(is_published, published_at);
+
+-- 9. MILESTONES
+create table public.milestones (
+  id uuid default gen_random_uuid() primary key,
+  student_id uuid references public.profiles(id) on delete cascade not null,
+  title text not null,
+  description text,
+  icon text default '🏆',
+  awarded_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+alter table public.milestones enable row level security;
+
+create policy "Students can view own milestones" on public.milestones
+  for select using (auth.uid() = student_id);
+
+create policy "Admins can manage milestones" on public.milestones
+  for all using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+
+create index idx_milestones_student on public.milestones(student_id);
