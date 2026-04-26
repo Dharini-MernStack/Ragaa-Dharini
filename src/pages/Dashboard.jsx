@@ -23,6 +23,7 @@ export default function Dashboard() {
 
   const [adminWhitelist, setAdminWhitelist] = useState([]);
   const [adminEnrollments, setAdminEnrollments] = useState([]);
+  const [adminBlogPosts, setAdminBlogPosts] = useState([]);
   const [allProfiles, setAllProfiles] = useState([]);
   const [adminError, setAdminError] = useState("");
   const [adminSuccess, setAdminSuccess] = useState("");
@@ -33,6 +34,16 @@ export default function Dashboard() {
     student_id: "",
     course_id: "",
     status: "active",
+  });
+  const [blogForm, setBlogForm] = useState({
+    id: null, // for editing
+    title: "",
+    slug: "",
+    excerpt: "",
+    content: "",
+    cover_image_url: "",
+    tags: "",
+    is_published: false,
   });
   const [scheduleForm, setScheduleForm] = useState({
     course_id: "",
@@ -128,7 +139,7 @@ export default function Dashboard() {
       }
 
       if (adminMode) {
-        await Promise.all([loadWhitelist(), loadEnrollments(), loadAllProfiles()]);
+        await Promise.all([loadWhitelist(), loadEnrollments(), loadAllProfiles(), loadAdminBlogPosts()]);
       }
 
       if (!adminMode && activeTab === "admin") {
@@ -252,6 +263,93 @@ export default function Dashboard() {
     } else {
       setAdminSuccess("Enrollment removed.");
       await loadEnrollments();
+    }
+    setSaving(false);
+  }
+
+  async function loadAdminBlogPosts() {
+    const { data, error } = await supabase
+      .from("blog_posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Blog posts load error:", error);
+      return;
+    }
+    setAdminBlogPosts(data || []);
+  }
+
+  async function saveBlogPost(e) {
+    e.preventDefault();
+    if (!blogForm.title || !blogForm.slug || !blogForm.content) {
+      setAdminError("Title, slug, and content are required.");
+      return;
+    }
+
+    setSaving(true);
+    setAdminError("");
+    setAdminSuccess("");
+
+    const payload = {
+      title: blogForm.title,
+      slug: blogForm.slug,
+      excerpt: blogForm.excerpt,
+      content: blogForm.content,
+      cover_image_url: blogForm.cover_image_url,
+      tags: blogForm.tags.split(",").map(t => t.trim()).filter(Boolean),
+      is_published: blogForm.is_published,
+      published_at: blogForm.is_published ? (blogForm.published_at || new Date().toISOString()) : null,
+    };
+
+    let error;
+    if (blogForm.id) {
+      const { error: err } = await supabase
+        .from("blog_posts")
+        .update(payload)
+        .eq("id", blogForm.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase
+        .from("blog_posts")
+        .insert(payload);
+      error = err;
+    }
+
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Blog post saved successfully.");
+      setBlogForm({ id: null, title: "", slug: "", excerpt: "", content: "", cover_image_url: "", tags: "", is_published: false });
+      await loadAdminBlogPosts();
+    }
+    setSaving(false);
+  }
+
+  async function editBlogPost(post) {
+    setBlogForm({
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt || "",
+      content: post.content || "",
+      cover_image_url: post.cover_image_url || "",
+      tags: post.tags?.join(", ") || "",
+      is_published: post.is_published,
+      published_at: post.published_at,
+    });
+    // Scroll to form or switch to a sub-tab if we had one
+  }
+
+  async function deleteBlogPost(id) {
+    if (!window.confirm("Delete this blog post permanently?")) return;
+    setSaving(true);
+    const { error } = await supabase.from("blog_posts").delete().eq("id", id);
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Post deleted.");
+      await loadAdminBlogPosts();
     }
     setSaving(false);
   }
@@ -1307,87 +1405,91 @@ export default function Dashboard() {
                       marginBottom: 14,
                     }}
                   >
-                    Upload Recording
+                    Blog & Resources Management
                   </h4>
 
-                  <form onSubmit={uploadRecording} style={{ display: "grid", gap: 10 }}>
-                    <select
-                      value={recordingForm.course_id}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({ ...prev, course_id: e.target.value }))
-                      }
-                      style={inputStyle}
-                    >
-                      {courses.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.title} ({c.level})
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={recordingForm.session_id}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({ ...prev, session_id: e.target.value }))
-                      }
-                      style={inputStyle}
-                    >
-                      <option value="">Attach to a scheduled class (optional)</option>
-                      {adminSessions.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.title} - {formatDate(s.scheduled_at)}
-                        </option>
-                      ))}
-                    </select>
+                  <form onSubmit={saveBlogPost} style={{ display: "grid", gap: 10, marginBottom: 24 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <input
+                        placeholder="Title"
+                        value={blogForm.title}
+                        onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value })}
+                        style={inputStyle}
+                      />
+                      <input
+                        placeholder="Slug (e.g. raga-mayamalavagowla)"
+                        value={blogForm.slug}
+                        onChange={(e) => setBlogForm({ ...blogForm, slug: e.target.value })}
+                        style={inputStyle}
+                      />
+                    </div>
                     <input
-                      placeholder="Recording title"
-                      value={recordingForm.title}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({ ...prev, title: e.target.value }))
-                      }
+                      placeholder="Excerpt (short summary)"
+                      value={blogForm.excerpt}
+                      onChange={(e) => setBlogForm({ ...blogForm, excerpt: e.target.value })}
                       style={inputStyle}
                     />
                     <textarea
-                      placeholder="Description"
-                      value={recordingForm.description}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({ ...prev, description: e.target.value }))
-                      }
-                      style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}
+                      placeholder="Content (full article)"
+                      value={blogForm.content}
+                      onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
+                      style={{ ...inputStyle, minHeight: 150, resize: "vertical" }}
                     />
-                    <input
-                      type="url"
-                      placeholder="Recording URL"
-                      value={recordingForm.video_url}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({ ...prev, video_url: e.target.value }))
-                      }
-                      style={inputStyle}
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Duration in seconds (optional)"
-                      value={recordingForm.duration_seconds}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({
-                          ...prev,
-                          duration_seconds: e.target.value,
-                        }))
-                      }
-                      style={inputStyle}
-                    />
-                    <input
-                      type="datetime-local"
-                      value={recordingForm.recorded_at}
-                      onChange={(e) =>
-                        setRecordingForm((prev) => ({ ...prev, recorded_at: e.target.value }))
-                      }
-                      style={inputStyle}
-                    />
-                    <Btn style={{ width: "fit-content", opacity: saving ? 0.7 : 1 }}>
-                      Upload recording
-                    </Btn>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <input
+                        placeholder="Cover Image URL"
+                        value={blogForm.cover_image_url}
+                        onChange={(e) => setBlogForm({ ...blogForm, cover_image_url: e.target.value })}
+                        style={inputStyle}
+                      />
+                      <input
+                        placeholder="Tags (comma separated)"
+                        value={blogForm.tags}
+                        onChange={(e) => setBlogForm({ ...blogForm, tags: e.target.value })}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input
+                        type="checkbox"
+                        id="is_published"
+                        checked={blogForm.is_published}
+                        onChange={(e) => setBlogForm({ ...blogForm, is_published: e.target.checked })}
+                      />
+                      <label htmlFor="is_published" style={{ color: COLORS.cream, fontSize: 13 }}>Published</label>
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Btn style={{ width: "fit-content", opacity: saving ? 0.7 : 1 }}>
+                        {blogForm.id ? "Update Post" : "Create Post"}
+                      </Btn>
+                      {blogForm.id && (
+                        <Btn variant="outline" type="button" onClick={() => setBlogForm({ id: null, title: "", slug: "", excerpt: "", content: "", cover_image_url: "", tags: "", is_published: false })}>
+                          Cancel Edit
+                        </Btn>
+                      )}
+                    </div>
                   </form>
+
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {adminBlogPosts.length === 0 ? (
+                      <p style={{ color: COLORS.textMuted, fontSize: 13 }}>No posts yet.</p>
+                    ) : (
+                      adminBlogPosts.map(post => (
+                        <div key={post.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                          <div>
+                            <div style={{ color: COLORS.warmWhite, fontSize: 14 }}>{post.title}</div>
+                            <div style={{ color: COLORS.textMuted, fontSize: 11 }}>
+                              {post.is_published ? "Published" : "Draft"} · {post.slug}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button onClick={() => editBlogPost(post)} style={{ background: "transparent", border: "none", color: COLORS.gold, cursor: "pointer", fontSize: 12 }}>Edit</button>
+                            <button onClick={() => deleteBlogPost(post.id)} style={{ background: "transparent", border: "none", color: COLORS.accent, cursor: "pointer", fontSize: 12 }}>Delete</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             )}

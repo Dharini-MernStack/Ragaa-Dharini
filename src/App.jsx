@@ -6,6 +6,8 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import Blog from "./pages/Blog";
+import PostDetail from "./pages/PostDetail";
 import PlaceholderPage from "./pages/PlaceholderPage";
 
 /* Redirects to /login if not authenticated */
@@ -95,12 +97,11 @@ export default function App() {
         />
         <Route
           path="/blog"
-          element={
-            <PlaceholderPage
-              title="Resources & Blog"
-              description="Articles on rāgas, practice techniques, concert reviews, and the living heritage of Carnatic music."
-            />
-          }
+          element={<Blog />}
+        />
+        <Route
+          path="/blog/:slug"
+          element={<PostDetail />}
         />
 
         {/* Catch-all */}
