@@ -24,7 +24,9 @@ export default function Dashboard() {
   const [adminWhitelist, setAdminWhitelist] = useState([]);
   const [adminEnrollments, setAdminEnrollments] = useState([]);
   const [adminBlogPosts, setAdminBlogPosts] = useState([]);
+  const [adminMilestones, setAdminMilestones] = useState([]);
   const [allProfiles, setAllProfiles] = useState([]);
+  const [studentMilestones, setStudentMilestones] = useState([]);
   const [adminError, setAdminError] = useState("");
   const [adminSuccess, setAdminSuccess] = useState("");
   const [saving, setSaving] = useState(false);
@@ -44,6 +46,12 @@ export default function Dashboard() {
     cover_image_url: "",
     tags: "",
     is_published: false,
+  });
+  const [milestoneForm, setMilestoneForm] = useState({
+    student_id: "",
+    title: "",
+    description: "",
+    icon: "🏆",
   });
   const [scheduleForm, setScheduleForm] = useState({
     course_id: "",
@@ -75,7 +83,7 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
-      const [profileRes, whitelistRes, notifsRes, recsRes, schedRes, coursesRes] =
+      const [profileRes, whitelistRes, notifsRes, recsRes, schedRes, coursesRes, milestonesRes] =
         await Promise.all([
           supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
           user.email
@@ -106,6 +114,11 @@ export default function Dashboard() {
             .from("courses")
             .select("id, title, level")
             .order("sort_order", { ascending: true }),
+          supabase
+            .from("milestones")
+            .select("*")
+            .eq("student_id", user.id)
+            .order("awarded_at", { ascending: false }),
         ]);
 
       const profileRole = profileRes.data?.role || "student";
@@ -126,6 +139,7 @@ export default function Dashboard() {
       setRecordings(recsRes.data || []);
       setSchedule(schedRes.data || []);
       setCourses(coursesRes.data || []);
+      setStudentMilestones(milestonesRes.data || []);
 
       if (coursesRes.data?.length) {
         setScheduleForm((prev) => ({
@@ -139,7 +153,7 @@ export default function Dashboard() {
       }
 
       if (adminMode) {
-        await Promise.all([loadWhitelist(), loadEnrollments(), loadAllProfiles(), loadAdminBlogPosts()]);
+        await Promise.all([loadWhitelist(), loadEnrollments(), loadAllProfiles(), loadAdminBlogPosts(), loadAdminMilestones()]);
       }
 
       if (!adminMode && activeTab === "admin") {
@@ -350,6 +364,64 @@ export default function Dashboard() {
     } else {
       setAdminSuccess("Post deleted.");
       await loadAdminBlogPosts();
+    }
+    setSaving(false);
+  }
+
+  async function loadAdminMilestones() {
+    const { data, error } = await supabase
+      .from("milestones")
+      .select(`
+        *,
+        student:profiles(id, full_name)
+      `)
+      .order("awarded_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error("Milestones load error:", error);
+      return;
+    }
+    setAdminMilestones(data || []);
+  }
+
+  async function awardMilestone(e) {
+    e.preventDefault();
+    if (!milestoneForm.student_id || !milestoneForm.title) {
+      setAdminError("Student and title are required.");
+      return;
+    }
+
+    setSaving(true);
+    setAdminError("");
+    setAdminSuccess("");
+
+    const { error } = await supabase.from("milestones").insert({
+      student_id: milestoneForm.student_id,
+      title: milestoneForm.title,
+      description: milestoneForm.description,
+      icon: milestoneForm.icon,
+    });
+
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Milestone awarded!");
+      setMilestoneForm({ student_id: "", title: "", description: "", icon: "🏆" });
+      await loadAdminMilestones();
+    }
+    setSaving(false);
+  }
+
+  async function deleteMilestone(id) {
+    if (!window.confirm("Delete this milestone?")) return;
+    setSaving(true);
+    const { error } = await supabase.from("milestones").delete().eq("id", id);
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Milestone deleted.");
+      await loadAdminMilestones();
     }
     setSaving(false);
   }
@@ -656,6 +728,11 @@ export default function Dashboard() {
           <div style={tabStyle("recordings")} onClick={() => setActiveTab("recordings")}>
             Recordings ({recordings.length})
           </div>
+          {!isAdmin && (
+            <div style={tabStyle("progress")} onClick={() => setActiveTab("progress")}>
+              Progress ({studentMilestones.length})
+            </div>
+          )}
           <div
             style={tabStyle("notifications")}
             onClick={() => setActiveTab("notifications")}
@@ -714,6 +791,7 @@ export default function Dashboard() {
                   {[
                     { num: schedule.length, label: "Upcoming Classes", icon: "Schedule" },
                     { num: recordings.length, label: "Recordings", icon: "Recordings" },
+                    { num: studentMilestones.length, label: "Milestones", icon: "Awards" },
                     { num: unreadCount, label: "New Notifications", icon: "Alerts" },
                   ].map((s) => (
                     <div
@@ -983,6 +1061,45 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {activeTab === "progress" && !isAdmin && (
+              <div>
+                <h3
+                  style={{
+                    fontFamily: fonts.display,
+                    fontSize: 22,
+                    color: COLORS.warmWhite,
+                    marginBottom: 24,
+                  }}
+                >
+                  Your Musical Journey
+                </h3>
+                {studentMilestones.length === 0 ? (
+                  <div style={{ ...cardStyle, textAlign: "center", padding: 60 }}>
+                    <div style={{ fontSize: 40, marginBottom: 16 }}>🌱</div>
+                    <p style={{ fontFamily: fonts.accent, fontSize: 18, color: COLORS.textMuted }}>
+                      Every great journey begins with a single swara.
+                    </p>
+                    <p style={{ fontFamily: fonts.body, fontSize: 14, color: COLORS.textMuted, marginTop: 8 }}>
+                      Your achievements and milestones will appear here as you progress.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+                    {studentMilestones.map((m) => (
+                      <div key={m.id} style={{ ...cardStyle, textAlign: "center", padding: 32 }}>
+                        <div style={{ fontSize: 48, marginBottom: 16 }}>{m.icon || "🏆"}</div>
+                        <h4 style={{ fontFamily: fonts.display, fontSize: 20, color: COLORS.gold, marginBottom: 8 }}>{m.title}</h4>
+                        <p style={{ fontFamily: fonts.body, fontSize: 13, color: COLORS.creamMuted, lineHeight: 1.6 }}>{m.description}</p>
+                        <div style={{ marginTop: 20, fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>
+                          Awarded {new Date(m.awarded_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -1394,6 +1511,67 @@ export default function Dashboard() {
                       Save class schedule
                     </Btn>
                   </form>
+                </div>
+
+                <div style={cardStyle}>
+                  <h4
+                    style={{
+                      fontFamily: fonts.display,
+                      fontSize: 20,
+                      color: COLORS.warmWhite,
+                      marginBottom: 14,
+                    }}
+                  >
+                    Award Milestones
+                  </h4>
+
+                  <form onSubmit={awardMilestone} style={{ display: "grid", gap: 10, marginBottom: 20 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <select
+                        value={milestoneForm.student_id}
+                        onChange={(e) => setMilestoneForm({ ...milestoneForm, student_id: e.target.value })}
+                        style={inputStyle}
+                      >
+                        <option value="">Select Student</option>
+                        {allProfiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                      </select>
+                      <input
+                        placeholder="Milestone Title (e.g. Geetham Mastery)"
+                        value={milestoneForm.title}
+                        onChange={(e) => setMilestoneForm({ ...milestoneForm, title: e.target.value })}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 4fr", gap: 10 }}>
+                      <select
+                        value={milestoneForm.icon}
+                        onChange={(e) => setMilestoneForm({ ...milestoneForm, icon: e.target.value })}
+                        style={inputStyle}
+                      >
+                        {["🏆", "⭐", "🎵", "📜", "🎓", "🎤", "🧘", "🔥"].map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                      <input
+                        placeholder="Description (optional)"
+                        value={milestoneForm.description}
+                        onChange={(e) => setMilestoneForm({ ...milestoneForm, description: e.target.value })}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <Btn style={{ width: "fit-content", opacity: saving ? 0.7 : 1 }}>Award Milestone</Btn>
+                  </form>
+
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {adminMilestones.map(m => (
+                      <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                        <div>
+                          <span style={{ marginRight: 8 }}>{m.icon}</span>
+                          <span style={{ color: COLORS.warmWhite, fontSize: 14 }}>{m.title}</span>
+                          <span style={{ color: COLORS.textMuted, fontSize: 12, marginLeft: 8 }}>→ {m.student?.full_name}</span>
+                        </div>
+                        <button onClick={() => deleteMilestone(m.id)} style={{ background: "transparent", border: "none", color: COLORS.accent, cursor: "pointer", fontSize: 12 }}>Delete</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div style={cardStyle}>
