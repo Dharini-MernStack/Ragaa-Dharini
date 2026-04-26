@@ -7,7 +7,7 @@ import GoldDivider from "../components/GoldDivider";
 import Btn from "../components/Btn";
 
 /* ───────────────── Hero ───────────────── */
-function Hero() {
+function Hero({ stats }) {
   const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -135,12 +135,7 @@ function Hero() {
           transition: "all 1s ease 0.7s",
         }}
       >
-        {[
-          { num: "500+", label: "Students Taught" },
-          { num: "6+", label: "Years Teaching" },
-          { num: "98%", label: "Satisfaction Rate" },
-          { num: "1000+", label: "Classes Conducted" },
-        ].map((s) => (
+        {stats.map((s) => (
           <div key={s.label} style={{ textAlign: "center" }}>
             <div
               style={{
@@ -150,7 +145,7 @@ function Hero() {
                 color: COLORS.gold,
               }}
             >
-              {s.num}
+              {s.value}
             </div>
             <div
               style={{
@@ -476,30 +471,7 @@ function CoursesPreview({ courses }) {
 function PricingSection({ courses }) {
   // Use the "Regular" level courses for the pricing section
   const regularCourses = courses.filter((c) => c.level === "Regular");
-
-  // Also keep the summary "Package" if we want, or just show all Regular courses
-  // In the original, there was a "Package" plan that summarized structured courses.
-  const displayPlans = [
-    ...regularCourses.map(c => ({
-      type: c.is_featured ? "Popular" : "Regular",
-      title: c.title,
-      price: c.price_label,
-      sessions: c.sessions_count,
-      desc: c.description,
-      accent: c.color || COLORS.gold,
-      featured: c.is_featured,
-      id: c.id
-    })),
-    {
-      type: "Package",
-      title: "Structured Course Packs",
-      price: "From ₹4,999",
-      sessions: "Level-based curriculum",
-      desc: "Foundation and intermediate pathways with progressive milestones, assignments, and performance prep.",
-      accent: COLORS.accent,
-      id: "structured-package"
-    }
-  ];
+  const specialtyCourses = courses.filter((c) => c.level === "Specialty");
 
   return (
     <section id="pricing" style={{ padding: "100px 24px", background: COLORS.bgCard }}>
@@ -514,9 +486,9 @@ function PricingSection({ courses }) {
               fontWeight: 600,
             }}
           >
-            Pricing for Every{" "}
+            Monthly{" "}
             <span style={{ fontStyle: "italic", color: COLORS.gold }}>
-              Aspirant
+              Practice
             </span>
           </h2>
           <p
@@ -529,73 +501,43 @@ function PricingSection({ courses }) {
               margin: "20px auto 0",
             }}
           >
-            Choose a rhythm that matches your schedule while staying rooted in
-            traditional learning. Upgrade anytime as your practice deepens.
+            Consistent practice with your guru. Choose a rhythm that matches your schedule.
           </p>
         </div>
 
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: 22,
+            marginBottom: 60,
           }}
         >
-          {displayPlans.map((plan) => (
+          {regularCourses.map((plan) => (
             <div
-              key={plan.id || plan.title}
+              key={plan.id}
               style={{
                 background: COLORS.bg,
                 borderRadius: 16,
-                border: plan.featured
+                border: plan.is_featured
                   ? `1.5px solid ${COLORS.gold}`
                   : `1px solid ${COLORS.border}`,
                 padding: 30,
                 position: "relative",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
-              {plan.featured && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 16,
-                    right: 16,
-                    fontFamily: fonts.body,
-                    fontSize: 10,
-                    color: COLORS.bg,
-                    background: COLORS.gold,
-                    letterSpacing: 1,
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                    padding: "5px 10px",
-                    borderRadius: 20,
-                  }}
-                >
-                  Most Chosen
-                </span>
-              )}
-
               <div
                 style={{
                   width: 10,
                   height: 10,
                   borderRadius: "50%",
-                  background: plan.accent,
+                  background: plan.color || COLORS.gold,
                   marginBottom: 16,
                 }}
               />
 
-              <div
-                style={{
-                  fontFamily: fonts.body,
-                  fontSize: 11,
-                  color: COLORS.textMuted,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                }}
-              >
-                {plan.type}
-              </div>
               <h3
                 style={{
                   fontFamily: fonts.display,
@@ -615,7 +557,7 @@ function PricingSection({ courses }) {
                   fontWeight: 700,
                 }}
               >
-                {plan.price}
+                {plan.price_label}
               </div>
               <p
                 style={{
@@ -625,7 +567,7 @@ function PricingSection({ courses }) {
                   marginBottom: 14,
                 }}
               >
-                {plan.sessions}
+                {plan.sessions_count}
               </p>
               <p
                 style={{
@@ -633,16 +575,49 @@ function PricingSection({ courses }) {
                   fontSize: 13,
                   color: COLORS.textMuted,
                   lineHeight: 1.7,
+                  marginBottom: 30,
+                  flex: 1,
                 }}
               >
-                {plan.desc}
+                {plan.description}
               </p>
+              <Btn onClick={openWhatsApp} variant={plan.is_featured ? "primary" : "outline"} style={{ width: "100%", fontSize: 12 }}>
+                Book Free Trial Now
+              </Btn>
             </div>
           ))}
         </div>
 
-        <div style={{ textAlign: "center", marginTop: 40 }}>
-          <Btn onClick={openWhatsApp}>Book Free Trial and Discuss Plan</Btn>
+        {/* Specialty Section */}
+        {specialtyCourses.length > 0 && (
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 60 }}>
+            <div style={{ textAlign: "center", marginBottom: 40 }}>
+              <SectionTag>Specialty Learning</SectionTag>
+              <h3 style={{ fontFamily: fonts.display, fontSize: 32, color: COLORS.warmWhite }}>
+                Compositions Lab & <span style={{ color: COLORS.gold, fontStyle: "italic" }}>Workshops</span>
+              </h3>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+              {specialtyCourses.map(course => (
+                <div key={course.id} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 30, display: "flex", gap: 24, alignItems: "center" }}>
+                  <div style={{ fontSize: 40 }}>🎭</div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontFamily: fonts.display, fontSize: 20, color: COLORS.warmWhite, marginBottom: 4 }}>{course.title}</h4>
+                    <p style={{ fontFamily: fonts.body, fontSize: 13, color: COLORS.textMuted, marginBottom: 12 }}>{course.description}</p>
+                    <div style={{ color: COLORS.gold, fontWeight: 700, fontFamily: fonts.display, fontSize: 18 }}>{course.price_label}</div>
+                  </div>
+                  <Btn onClick={openWhatsApp} variant="outline" style={{ padding: "8px 16px", fontSize: 11 }}>Inquire</Btn>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", marginTop: 80 }}>
+          <p style={{ fontFamily: fonts.body, color: COLORS.textMuted, marginBottom: 20, fontSize: 14 }}>
+            Looking for structured curriculum-based courses?
+          </p>
+          <Btn onClick={() => navigate("/#courses")}>View Structured Course Packs</Btn>
         </div>
       </div>
     </section>
@@ -650,7 +625,8 @@ function PricingSection({ courses }) {
 }
 
 /* ───────────────── Guru Section ───────────────── */
-function GuruSection() {
+function GuruSection({ guruInfo }) {
+  if (!guruInfo) return null;
   return (
     <section style={{ padding: "100px 24px", background: COLORS.bgCard }}>
       <div style={{ maxWidth: 800, margin: "0 auto" }}>
@@ -666,7 +642,7 @@ function GuruSection() {
           >
             Learn from{" "}
             <span style={{ fontStyle: "italic", color: COLORS.gold }}>
-              Dharini
+              {guruInfo.name}
             </span>
           </h2>
         </div>
@@ -700,7 +676,7 @@ function GuruSection() {
               border: `3px solid ${COLORS.gold}`,
             }}
           >
-            D
+            {guruInfo.name.charAt(0)}
           </div>
           <h3
             style={{
@@ -710,7 +686,7 @@ function GuruSection() {
               marginBottom: 8,
             }}
           >
-            Dharini
+            {guruInfo.name}
           </h3>
           <p
             style={{
@@ -722,7 +698,7 @@ function GuruSection() {
               letterSpacing: 1,
             }}
           >
-            Certified Carnatic Vocalist
+            {guruInfo.title}
           </p>
           <GoldDivider width={80} />
           <p
@@ -736,15 +712,7 @@ function GuruSection() {
               fontWeight: 300,
             }}
           >
-            With over 6 years of dedicated teaching experience, Dharini brings
-            warmth, patience, and deep musical knowledge to every class. Trained
-            under the guidance of{" "}
-            <span style={{ color: COLORS.gold, fontWeight: 500 }}>
-              Sri Chakrapani G
-            </span>
-            , she carries forward a rich lineage of Carnatic vocal tradition,
-            making even complex concepts accessible and joyful for students of
-            all levels.
+            {guruInfo.bio}
           </p>
           <div
             style={{
@@ -755,11 +723,7 @@ function GuruSection() {
               justifyContent: "center",
             }}
           >
-            {[
-              { label: "6+ Years", sub: "Teaching Experience" },
-              { label: "Sri Chakrapani G", sub: "Trained Under" },
-              { label: "All Levels", sub: "Beginner to Advanced" },
-            ].map((s) => (
+            {guruInfo.stats?.map((s) => (
               <div
                 key={s.label}
                 style={{
@@ -802,33 +766,19 @@ function GuruSection() {
 }
 
 /* ───────────────── Testimonials ───────────────── */
-function Testimonials() {
+function Testimonials({ testimonials }) {
   const [active, setActive] = useState(0);
-  const testimonials = [
-    {
-      name: "Ananya R.",
-      location: "Chennai",
-      text: "Dharini transformed my understanding of Carnatic music. Her patience and depth of knowledge made every class a revelation. I went from barely knowing swaras to performing my first concert in 8 months.",
-    },
-    {
-      name: "Karthik S.",
-      location: "Bangalore",
-      text: "As someone living abroad, finding authentic Carnatic training was difficult. Dharini not only taught technique but transmitted the bhakti behind every krithi. Her classes feel like home.",
-    },
-    {
-      name: "Meera P.",
-      location: "Mumbai",
-      text: "My daughter started at age 7 and Dharini's structured yet gentle approach has been incredible. She now practices voluntarily and sings with a confidence that moves everyone who hears her.",
-    },
-  ];
 
   useEffect(() => {
+    if (testimonials.length === 0) return;
     const i = setInterval(
       () => setActive((a) => (a + 1) % testimonials.length),
       6000
     );
     return () => clearInterval(i);
-  }, []);
+  }, [testimonials.length]);
+
+  if (testimonials.length === 0) return null;
 
   return (
     <section style={{ padding: "100px 24px", background: COLORS.bg }}>
@@ -1067,27 +1017,33 @@ function CTASection() {
 export default function Home() {
   const location = useLocation();
   const [courses, setCourses] = useState([]);
+  const [stats, setStats] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
+  const [guruInfo, setGuruInfo] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchCourses() {
+    async function fetchData() {
       try {
-        const { data, error } = await supabase
-          .from("courses")
-          .select("*")
-          .eq("is_active", true)
-          .order("sort_order", { ascending: true });
+        const [coursesRes, statsRes, testRes, configRes] = await Promise.all([
+          supabase.from("courses").select("*").eq("is_active", true).order("sort_order", { ascending: true }),
+          supabase.from("academy_stats").select("*").order("sort_order", { ascending: true }),
+          supabase.from("testimonials").select("*").eq("is_featured", true).order("created_at", { ascending: false }),
+          supabase.from("academy_config").select("*").eq("key", "guru_info").maybeSingle()
+        ]);
 
-        if (error) throw error;
-        setCourses(data || []);
+        setCourses(coursesRes.data || []);
+        setStats(statsRes.data || []);
+        setTestimonials(testRes.data || []);
+        setGuruInfo(configRes.data?.value || null);
       } catch (err) {
-        console.error("Error fetching courses:", err);
+        console.error("Error fetching data:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchCourses();
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -1111,12 +1067,12 @@ export default function Home() {
 
   return (
     <>
-      <Hero />
+      <Hero stats={stats} />
       <AboutSection />
       <CoursesPreview courses={learningPaths} />
       <PricingSection courses={courses} />
-      <GuruSection />
-      <Testimonials />
+      <GuruSection guruInfo={guruInfo} />
+      <Testimonials testimonials={testimonials} />
       <WhyRagaa />
       <CTASection />
     </>
