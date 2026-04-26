@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "../supabase";
 import { COLORS, fonts, openWhatsApp } from "../styles/theme";
 import SectionTag from "../components/SectionTag";
 import GoldDivider from "../components/GoldDivider";
@@ -289,38 +290,8 @@ function AboutSection() {
 }
 
 /* ───────────────── Courses Preview ───────────────── */
-function CoursesPreview() {
+function CoursesPreview({ courses }) {
   const navigate = useNavigate();
-  const courses = [
-    {
-      level: "Foundation",
-      title: "Swara Sadhana",
-      duration: "3 months",
-      sessions: "24 sessions",
-      price: "₹4,999",
-      color: "#2D6A4F",
-      desc: "Begin your journey with sruti, swara exercises, basic rāgas like Mayamalavagowla, and simple devotional songs.",
-    },
-    {
-      level: "Intermediate",
-      title: "Rāga Deepam",
-      duration: "6 months",
-      sessions: "48 sessions",
-      price: "₹8,999",
-      color: COLORS.goldDim,
-      desc: "Dive into rāga elaboration, kritis by the Trinity, neraval practice, and intermediate tāla patterns.",
-      featured: true,
-    },
-    {
-      level: "Specialty",
-      title: "Compositions Lab",
-      duration: "Ongoing",
-      sessions: "Flexible",
-      price: "₹2,499/mo",
-      color: "#7B4F9E",
-      desc: "Deep-dive into specific composers: Thyagaraja, Dikshitar, Syama Sastri, Purandaradasa, and contemporary works.",
-    },
-  ];
 
   return (
     <section id="courses" style={{ padding: "100px 24px", background: COLORS.bg }}>
@@ -351,12 +322,12 @@ function CoursesPreview() {
         >
           {courses.map((c) => (
             <div
-              key={c.title}
+              key={c.id || c.title}
               style={{
                 padding: 32,
                 borderRadius: 14,
                 background: COLORS.bgCard,
-                border: c.featured
+                border: c.is_featured
                   ? `1.5px solid ${COLORS.gold}`
                   : `1px solid ${COLORS.border}`,
                 position: "relative",
@@ -371,7 +342,7 @@ function CoursesPreview() {
                 (e.currentTarget.style.transform = "translateY(0)")
               }
             >
-              {c.featured && (
+              {c.is_featured && (
                 <div
                   style={{
                     position: "absolute",
@@ -395,7 +366,7 @@ function CoursesPreview() {
                   width: 10,
                   height: 10,
                   borderRadius: "50%",
-                  background: c.color,
+                  background: c.color || COLORS.gold,
                   marginBottom: 16,
                 }}
               />
@@ -431,7 +402,7 @@ function CoursesPreview() {
                   marginBottom: 20,
                 }}
               >
-                {c.desc}
+                {c.description}
               </p>
               <div
                 style={{
@@ -441,7 +412,7 @@ function CoursesPreview() {
                   flexWrap: "wrap",
                 }}
               >
-                {[c.duration, c.sessions].map((tag) => (
+                {[c.duration, c.sessions_count].filter(Boolean).map((tag) => (
                   <span
                     key={tag}
                     style={{
@@ -474,7 +445,7 @@ function CoursesPreview() {
                     fontWeight: 700,
                   }}
                 >
-                  {c.price}
+                  {c.price_label}
                 </span>
                 <span
                   style={{
@@ -502,25 +473,23 @@ function CoursesPreview() {
 }
 
 /* ───────────────── Pricing ───────────────── */
-function PricingSection() {
-  const plans = [
-    {
-      type: "Regular",
-      title: "4 Sessions / Month",
-      price: "₹1,500/mo",
-      sessions: "1 class per week",
-      desc: "Ideal for steady learning with guided swara practice and one focused class each week.",
-      accent: "#5B8A72",
-    },
-    {
-      type: "Popular",
-      title: "8 Sessions / Month",
-      price: "₹2,000/mo",
-      sessions: "2 classes per week",
-      desc: "Accelerated growth track with twice-weekly sessions for faster repertoire and manodharma development.",
-      accent: COLORS.gold,
-      featured: true,
-    },
+function PricingSection({ courses }) {
+  // Use the "Regular" level courses for the pricing section
+  const regularCourses = courses.filter((c) => c.level === "Regular");
+
+  // Also keep the summary "Package" if we want, or just show all Regular courses
+  // In the original, there was a "Package" plan that summarized structured courses.
+  const displayPlans = [
+    ...regularCourses.map(c => ({
+      type: c.is_featured ? "Popular" : "Regular",
+      title: c.title,
+      price: c.price_label,
+      sessions: c.sessions_count,
+      desc: c.description,
+      accent: c.color || COLORS.gold,
+      featured: c.is_featured,
+      id: c.id
+    })),
     {
       type: "Package",
       title: "Structured Course Packs",
@@ -528,7 +497,8 @@ function PricingSection() {
       sessions: "Level-based curriculum",
       desc: "Foundation and intermediate pathways with progressive milestones, assignments, and performance prep.",
       accent: COLORS.accent,
-    },
+      id: "structured-package"
+    }
   ];
 
   return (
@@ -571,9 +541,9 @@ function PricingSection() {
             gap: 22,
           }}
         >
-          {plans.map((plan) => (
+          {displayPlans.map((plan) => (
             <div
-              key={plan.title}
+              key={plan.id || plan.title}
               style={{
                 background: COLORS.bg,
                 borderRadius: 16,
@@ -1096,6 +1066,29 @@ function CTASection() {
 /* ───────────────── Page Export ───────────────── */
 export default function Home() {
   const location = useLocation();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCourses() {
+      try {
+        const { data, error } = await supabase
+          .from("courses")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true });
+
+        if (error) throw error;
+        setCourses(data || []);
+      } catch (err) {
+        console.error("Error fetching courses:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchCourses();
+  }, []);
 
   useEffect(() => {
     if (!location.hash) {
@@ -1113,12 +1106,15 @@ export default function Home() {
     window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
   }, [location.hash, location.pathname]);
 
+  // Filter courses for different sections
+  const learningPaths = courses.filter(c => ["Foundation", "Intermediate", "Specialty"].includes(c.level));
+
   return (
     <>
       <Hero />
       <AboutSection />
-      <CoursesPreview />
-      <PricingSection />
+      <CoursesPreview courses={learningPaths} />
+      <PricingSection courses={courses} />
       <GuruSection />
       <Testimonials />
       <WhyRagaa />

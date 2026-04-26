@@ -206,6 +206,25 @@ export default function Navbar() {
                   }}
                 >
                   <div
+                    onClick={() => handleNav("/profile")}
+                    style={{
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      fontFamily: fonts.body,
+                      fontSize: 13,
+                      color: COLORS.cream,
+                      borderBottom: `1px solid ${COLORS.border}`,
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = COLORS.bgElevated)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    Profile Settings
+                  </div>
+                  <div
                     onClick={() => handleNav("/dashboard")}
                     style={{
                       padding: "12px 16px",
@@ -309,18 +328,33 @@ export default function Navbar() {
             </div>
           ))}
           {user && (
-            <div
-              onClick={handleSignOut}
-              style={{
-                fontFamily: fonts.body,
-                fontSize: 15,
-                color: COLORS.accent,
-                padding: "12px 0",
-                cursor: "pointer",
-              }}
-            >
-              Sign Out
-            </div>
+            <>
+              <div
+                onClick={() => handleNav("/profile")}
+                style={{
+                  fontFamily: fonts.body,
+                  fontSize: 15,
+                  color: COLORS.cream,
+                  padding: "12px 0",
+                  cursor: "pointer",
+                  borderBottom: `1px solid ${COLORS.border}`,
+                }}
+              >
+                Profile Settings
+              </div>
+              <div
+                onClick={handleSignOut}
+                style={{
+                  fontFamily: fonts.body,
+                  fontSize: 15,
+                  color: COLORS.accent,
+                  padding: "12px 0",
+                  cursor: "pointer",
+                }}
+              >
+                Sign Out
+              </div>
+            </>
           )}
         </div>
       )}

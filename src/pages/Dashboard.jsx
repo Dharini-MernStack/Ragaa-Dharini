@@ -22,11 +22,18 @@ export default function Dashboard() {
   const [courses, setCourses] = useState([]);
 
   const [adminWhitelist, setAdminWhitelist] = useState([]);
+  const [adminEnrollments, setAdminEnrollments] = useState([]);
+  const [allProfiles, setAllProfiles] = useState([]);
   const [adminError, setAdminError] = useState("");
   const [adminSuccess, setAdminSuccess] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [whitelistForm, setWhitelistForm] = useState({ email: "", note: "" });
+  const [enrollmentForm, setEnrollmentForm] = useState({
+    student_id: "",
+    course_id: "",
+    status: "active",
+  });
   const [scheduleForm, setScheduleForm] = useState({
     course_id: "",
     title: "",
@@ -121,7 +128,7 @@ export default function Dashboard() {
       }
 
       if (adminMode) {
-        await loadWhitelist();
+        await Promise.all([loadWhitelist(), loadEnrollments(), loadAllProfiles()]);
       }
 
       if (!adminMode && activeTab === "admin") {
@@ -152,6 +159,101 @@ export default function Dashboard() {
 
     setWhitelistFeatureEnabled(true);
     setAdminWhitelist(data || []);
+  }
+
+  async function loadEnrollments() {
+    const { data, error } = await supabase
+      .from("enrollments")
+      .select(`
+        id,
+        status,
+        enrolled_at,
+        student:profiles!enrollments_student_id_fkey(id, full_name, email:id),
+        course:courses(id, title)
+      `)
+      .order("enrolled_at", { ascending: false });
+
+    if (error) {
+      console.error("Enrollments load error:", error);
+      return;
+    }
+
+    // Profiles don't have email in the table but we can get it from auth.users via metadata if we had a join,
+    // but here we just have profiles. We might need to handle names carefully.
+    setAdminEnrollments(data || []);
+  }
+
+  async function loadAllProfiles() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .order("full_name", { ascending: true });
+
+    if (error) {
+      console.error("Profiles load error:", error);
+      return;
+    }
+    setAllProfiles(data || []);
+    if (data?.length > 0) {
+      setEnrollmentForm(prev => ({ ...prev, student_id: prev.student_id || data[0].id }));
+    }
+  }
+
+  async function addEnrollment(e) {
+    e.preventDefault();
+    if (!enrollmentForm.student_id || !enrollmentForm.course_id) {
+      setAdminError("Student and Course are required.");
+      return;
+    }
+
+    setSaving(true);
+    setAdminError("");
+    setAdminSuccess("");
+
+    const { error } = await supabase.from("enrollments").insert({
+      student_id: enrollmentForm.student_id,
+      course_id: enrollmentForm.course_id,
+      status: enrollmentForm.status,
+    });
+
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Enrollment added successfully.");
+      await loadEnrollments();
+    }
+    setSaving(false);
+  }
+
+  async function updateEnrollmentStatus(id, newStatus) {
+    setSaving(true);
+    const { error } = await supabase
+      .from("enrollments")
+      .update({ status: newStatus })
+      .eq("id", id);
+
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Status updated.");
+      await loadEnrollments();
+    }
+    setSaving(false);
+  }
+
+  async function removeEnrollment(id) {
+    if (!window.confirm("Are you sure you want to remove this enrollment?")) return;
+
+    setSaving(true);
+    const { error } = await supabase.from("enrollments").delete().eq("id", id);
+
+    if (error) {
+      setAdminError(error.message);
+    } else {
+      setAdminSuccess("Enrollment removed.");
+      await loadEnrollments();
+    }
+    setSaving(false);
   }
 
   async function addWhitelistedUser(e) {
@@ -923,6 +1025,100 @@ export default function Dashboard() {
                     {adminSuccess}
                   </div>
                 )}
+
+                <div style={{ ...cardStyle, marginBottom: 22 }}>
+                  <h4
+                    style={{
+                      fontFamily: fonts.display,
+                      fontSize: 20,
+                      color: COLORS.warmWhite,
+                      marginBottom: 14,
+                    }}
+                  >
+                    Manage Enrollments
+                  </h4>
+
+                  <form onSubmit={addEnrollment} style={{ display: "grid", gap: 10, marginBottom: 20 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <select
+                        value={enrollmentForm.student_id}
+                        onChange={(e) =>
+                          setEnrollmentForm((prev) => ({ ...prev, student_id: e.target.value }))
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="">Select Student</option>
+                        {allProfiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.full_name || "Unknown"} ({p.id.slice(0, 5)})
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={enrollmentForm.course_id}
+                        onChange={(e) =>
+                          setEnrollmentForm((prev) => ({ ...prev, course_id: e.target.value }))
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="">Select Course</option>
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Btn style={{ width: "fit-content", opacity: saving ? 0.7 : 1 }}>
+                      Enroll Student
+                    </Btn>
+                  </form>
+
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: fonts.body, fontSize: 13, color: COLORS.cream }}>
+                      <thead>
+                        <tr style={{ textAlign: "left", borderBottom: `1px solid ${COLORS.border}` }}>
+                          <th style={{ padding: "10px 5px", color: COLORS.textMuted }}>Student</th>
+                          <th style={{ padding: "10px 5px", color: COLORS.textMuted }}>Course</th>
+                          <th style={{ padding: "10px 5px", color: COLORS.textMuted }}>Status</th>
+                          <th style={{ padding: "10px 5px", color: COLORS.textMuted }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminEnrollments.length === 0 ? (
+                          <tr><td colSpan="4" style={{ padding: 20, textAlign: "center", color: COLORS.textMuted }}>No enrollments found.</td></tr>
+                        ) : (
+                          adminEnrollments.map((en) => (
+                            <tr key={en.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                              <td style={{ padding: "10px 5px" }}>{en.student?.full_name || "Unknown"}</td>
+                              <td style={{ padding: "10px 5px" }}>{en.course?.title}</td>
+                              <td style={{ padding: "10px 5px" }}>
+                                <select
+                                  value={en.status}
+                                  onChange={(e) => updateEnrollmentStatus(en.id, e.target.value)}
+                                  style={{ ...inputStyle, padding: "4px 8px" }}
+                                >
+                                  <option value="active">Active</option>
+                                  <option value="paused">Paused</option>
+                                  <option value="completed">Completed</option>
+                                  <option value="cancelled">Cancelled</option>
+                                </select>
+                              </td>
+                              <td style={{ padding: "10px 5px" }}>
+                                <button
+                                  onClick={() => removeEnrollment(en.id)}
+                                  style={{ background: "transparent", border: "none", color: COLORS.accent, cursor: "pointer", fontSize: 12 }}
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
                 <div style={{ ...cardStyle, marginBottom: 22 }}>
                   <h4
